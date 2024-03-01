@@ -1,0 +1,123 @@
+/*   checking data and delate useless columns */
+
+
+SELECT status, bed, bath, acre_lot, city, state, house_size, price
+FROM `realtor-data.zip.csv` rdzc
+limit 5;
+
+
+alter table `realtor-data.zip.csv` 
+drop column zip_code;
+
+alter table `realtor-data.zip.csv` 
+drop column prev_sold_date;
+
+select count(status)
+from `realtor-data.zip.csv` rdzc ;
+
+select distinct state
+from `realtor-data.zip.csv` rdzc;
+
+/*   checking data and delate useless columns */
+WITH build AS (
+  SELECT status,
+         COUNT(*) AS total_count
+  FROM `realtor-data.zip.csv` rd
+  WHERE status LIKE '%build%'
+  GROUP BY status
+)
+SELECT rz.status, 
+       build.total_count,
+       (build.total_count / COUNT(rz.status) * 100) AS prc
+FROM `realtor-data.zip.csv` rz
+INNER JOIN build ON rz.status = build.status
+WHERE rz.status LIKE '%build%'
+GROUP BY rz.status, build.total_count;
+
+
+
+/*   let's see ready to build apartment under avg price */
+
+SELECT
+    status,
+    city,
+    state,
+    house_size,
+    price,
+   ( SELECT
+ AVG(price)  from `realtor-data.zip.csv` rdzc2) as avg_price
+FROM
+    `realtor-data.zip.csv` rdzc
+     where status not like '%sale%'
+GROUP BY
+    1, 2, 3, 4, 5
+    having price < avg_price
+   limit 15;
+  
+  /*   let's see avg price in every state */
+  
+  select
+   distinct state,
+    ROUND( avg(price) over ( PARTITION by state),2),
+    (SELECT state, max(price)
+from `realtor-data.zip.csv` rdzc) 
+    from `realtor-data.zip.csv` rdzc
+   order by 2 desc;
+  
+  
+  /*  I wanted to add to this the average price, but then I noticed that it can be written much simpler :) */
+WITH mx AS (
+    SELECT
+        state,
+        MAX(price) AS max_price
+    FROM
+        `realtor-data.zip.csv` rdzc2
+    GROUP BY
+        state
+)
+SELECT
+    DISTINCT rdzc.state,
+    ROUND(AVG(rdzc.price) OVER (PARTITION BY rdzc.state), 2) AS avg_price,
+    mx.max_price
+FROM
+    `realtor-data.zip.csv` rdzc
+JOIN
+    mx ON rdzc.state = mx.state
+ORDER BY
+    avg_price DESC;
+   
+   
+   select state, max(price), round(avg(price),2)
+   from `realtor-data.zip.csv` rdzc
+  group by 1
+ ORDER BY
+    3 DESC;  
+   
+
+/*Let's see the number of 10 bathrooms and less, the price decreases fairly proportionally, 
+ * 
+ however, above 10 bathrooms the price does not increase as with the decrease, because maybe what's the use of 15 bathrooms:))) */
+
+
+  select bath, ROUND( avg(price), 2)
+from	`realtor-data.zip.csv` rdzc
+where bath BETWEEN  1 and 15
+group by 1
+order by 1 desc;  
+
+
+
+/*  the most popular city and secregation of size   */
+
+select distinct city, avg(house_size), count(city), 
+CASE 
+        WHEN AVG(house_size) > 1800 THEN 'huge'
+        WHEN AVG(house_size) > 100 AND AVG(house_size) <= 1800 THEN 'normal'
+        WHEN AVG(house_size) < 100 THEN 'tiny'
+END 'size'
+from `realtor-data.zip.csv` rdzc
+where house_size is not null
+group by 1
+order by  3 asc
+limit 5;  
+
